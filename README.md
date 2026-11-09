@@ -1,5 +1,7 @@
 # The Legendary Arc Reactor
 
+> **A fan-made storytelling of the legendary Arc Reactor** — an immersive, scroll-driven 3D tale of a miniature fusion reactor, told piece by piece in light, metal and voice.
+
 **The story of a miniature fusion reactor — an immersive, scroll-driven 3D storytelling experience.**
 
 A dark, cinematic scrollytelling site that takes a fusion reactor apart piece by piece and builds it back again: plasma ignition, magnetic containment, a palladium core, deuterium fuel, a miniature cyclotron, particle acceleration, the energy converter, cooling, and the outer shell — ending with the complete, locked reactor.
