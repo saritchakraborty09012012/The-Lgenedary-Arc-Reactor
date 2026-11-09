@@ -69,7 +69,7 @@ export const sections = [
     label: 'Scale',
     kicker: 'DIMENSIONS',
     height: 110,
-    lines: ['a miniature fusion reactor.'],
+    lines: ['and it fits in the palm of a hand.'],
     camera: { pos: [8.6, 1.4, 0.7], target: [0, 0, 0], fov: 30 },
     build: B(),
     bg: 'black',

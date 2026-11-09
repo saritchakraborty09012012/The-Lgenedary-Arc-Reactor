@@ -16,6 +16,7 @@ import DetailPanel from './components/DetailPanel'
 import Atmosphere from './components/Atmosphere'
 import Outro from './components/Outro'
 import Cursor from './components/Cursor'
+import DiveGate from './components/DiveGate'
 
 export default function App() {
   const stageRef = useRef(null)
@@ -36,6 +37,8 @@ export default function App() {
   const [detailId, setDetailId] = useState(null)
   const [soundOn, setSoundOn] = useState(false)
   const [voiceOn, setVoiceOn] = useState(false)
+  const [entered, setEntered] = useState(false)
+  const [tourOn, setTourOn] = useState(false)
 
   const finePointer = useMediaQuery('(pointer: fine)')
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -132,6 +135,62 @@ export default function App() {
     }
   }, [])
 
+  /* ------------------------------------------------------- dive-in entry */
+  const dive = useCallback(async () => {
+    setEntered(true)
+    // ambience on (only ever started from this button or the SOUND toggle)
+    if (!audioRef.current) audioRef.current = new ReactorAudio()
+    if (!soundOn) {
+      const on = await audioRef.current.toggle()
+      setSoundOn(on)
+      audioRef.current.setEnergy(Math.min(1, stateRef.current.timeline / 17))
+    }
+    // hosted narration on, starting with the current line
+    if (!voiceRef.current) voiceRef.current = new VoiceNarrator()
+    const narrator = voiceRef.current
+    if (narrator.supported && !narrator.enabled) {
+      narrator.enabled = true
+      setVoiceOn(true)
+      const { section, line } = beatRef.current
+      const text = sections[section]?.lines?.[line] || sections[0].lines[0]
+      const key = `s${String(section).padStart(2, '0')}-l${line}`
+      narrator.speak(text, key)
+    }
+    // guided tour: advance one narration beat at a time
+    if (!reducedMotion) setTourOn(true)
+  }, [soundOn, reducedMotion])
+
+  const enterQuiet = useCallback(() => {
+    setEntered(true)
+  }, [])
+
+  /* ------------------------------------------------------------- auto-tour */
+  useEffect(() => {
+    if (!tourOn) return
+    const stop = () => setTourOn(false)
+    const onUserInput = () => stop()
+    window.addEventListener('wheel', onUserInput, { passive: true })
+    window.addEventListener('touchstart', onUserInput, { passive: true })
+    window.addEventListener('keydown', onUserInput)
+
+    const id = window.setInterval(() => {
+      const t = stateRef.current.timeline
+      const next = Math.floor(t) + 1
+      if (next >= 17.85) {
+        stop()
+        return
+      }
+      window.scrollTo({ top: scrollYForTimeline(next), behavior: 'smooth' })
+    }, 3400)
+
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('wheel', onUserInput)
+      window.removeEventListener('touchstart', onUserInput)
+      window.removeEventListener('keydown', onUserInput)
+    }
+  }, [tourOn])
+
   const jumpTo = useCallback(
     (index) => {
       setMenuOpen(false)
@@ -158,6 +217,7 @@ export default function App() {
       setReady(true)
       setMinTime(true)
       setLoaderGone(true)
+      setEntered(true)
     }
     if (params.has('t')) {
       const t = parseFloat(params.get('t'))
@@ -202,6 +262,15 @@ export default function App() {
       <DetailPanel id={detailId} onClose={closeDetail} />
 
       <Cursor enabled={finePointer && !reducedMotion} />
+
+      {tourOn && (
+        <button type="button" className="tour-pill" onClick={() => setTourOn(false)}>
+          <span className="tour-pill-dot" aria-hidden="true" />
+          GUIDED TOUR — TAP TO TAKE CONTROL
+        </button>
+      )}
+
+      <DiveGate open={loaderGone && !entered} onDive={dive} onQuiet={enterQuiet} />
 
       <div className="scroll-space" style={{ height: `calc(${TOTAL_VH}vh + 100vh)` }} aria-hidden="true" />
 

@@ -1,24 +1,25 @@
 /**
- * Smooth storytelling narration.
+ * Hosting-style storytelling narration.
  *
  * Each caption line has a pre-generated neural-voice MP3 in /voice
- * (deep documentary narrator voice). Playback uses a single audio
- * element with a "latest-wins" queue:
+ * (deep documentary narrator voice). Playback is a strict FIFO queue:
  *
- *   - scrolling NEVER cancels the line that is currently playing
- *   - if you scroll ahead, only the newest line is queued
- *   - when the current line finishes, the queued line plays instantly
+ *   - every line the user scrolls through is ENQUEUED, never dropped
+ *   - lines play one after another in story order, like a host
+ *     telling the story — even if you scrolled past them quickly
+ *   - the current line is NEVER cancelled mid-sentence, so the
+ *     narration never fumbles or stutters
+ *   - the next clip is preloaded while the current one plays,
+ *     so there is no gap between lines
  *
- * That is what keeps the flow smooth instead of fumbling when the
- * user scrolls quickly. If an MP3 is missing, it falls back to the
- * best available browser voice.
+ * The only way to stop it is the VOICE toggle (or tour stop).
  */
 export class VoiceNarrator {
   constructor() {
     this.enabled = false
     this.audio = null
     this.currentKey = null
-    this.pending = null
+    this.queue = []
     this.cache = new Map()
     this.fallbackVoices = []
     this.pickVoice = this.pickVoice.bind(this)
@@ -30,6 +31,10 @@ export class VoiceNarrator {
 
   get supported() {
     return typeof window !== 'undefined'
+  }
+
+  get queueLength() {
+    return this.queue.length
   }
 
   /* ------------------------------------------------- browser voice fallback */
@@ -61,17 +66,16 @@ export class VoiceNarrator {
     if (!this.enabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return
     try {
       const synth = window.speechSynthesis
-      synth.cancel()
       const utter = new SpeechSynthesisUtterance(text)
       if (this.fallbackVoices[0]) utter.voice = this.fallbackVoices[0]
       utter.lang = this.fallbackVoices[0]?.lang || 'en-US'
       utter.rate = 0.92
       utter.pitch = 0.8
-      window.setTimeout(() => {
-        if (this.enabled) synth.speak(utter)
-      }, 40)
+      utter.onend = () => this.drain()
+      utter.onerror = () => this.drain()
+      synth.speak(utter)
     } catch {
-      /* best effort */
+      this.drain()
     }
   }
 
@@ -100,10 +104,12 @@ export class VoiceNarrator {
   }
 
   play(item) {
-    if (!item) return
-    if (item.key === this.currentKey) return
+    if (!item || !this.enabled) return
     this.currentKey = item.key
     this.audio = item.key ? this.getAudio(item.key) : null
+    // preload whatever comes next so the host never pauses
+    const next = this.queue[0]
+    if (next?.key) this.getAudio(next.key).load()
     if (!this.audio) {
       this.speakFallback(item.text)
       return
@@ -112,7 +118,6 @@ export class VoiceNarrator {
     const result = this.audio.play()
     if (result && result.catch) {
       result.catch(() => {
-        // e.g. autoplay blocked / file missing -> browser voice
         this.currentKey = null
         this.speakFallback(item.text)
       })
@@ -127,20 +132,22 @@ export class VoiceNarrator {
 
   drain() {
     if (!this.enabled) return
-    const next = this.pending
-    this.pending = null
-    if (next && next.key !== this.currentKey) this.play(next)
+    const next = this.queue.shift()
+    if (next) this.play(next)
   }
 
   /**
    * text: line to narrate, key: stable id like "s04-l2" (maps to /voice/s04-l2.mp3)
+   * Strict FIFO — every line is kept and read in order.
    */
   speak(text, key) {
     if (!this.enabled || !text) return
     const item = { text, key: key || null }
-    // never interrupt what is already playing — just queue the newest line
+    // de-dupe: never queue the same clip twice in a row / while playing
+    if (key && (key === this.currentKey || this.queue[this.queue.length - 1]?.key === key)) return
+    if (key && this.queue.some((q) => q.key === key)) return
     if (this.isPlaying()) {
-      this.pending = item
+      this.queue.push(item)
       if (key) this.getAudio(key).load()
       return
     }
@@ -148,7 +155,7 @@ export class VoiceNarrator {
   }
 
   stop() {
-    this.pending = null
+    this.queue = []
     this.currentKey = null
     if (this.audio) {
       try {
