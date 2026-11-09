@@ -93,11 +93,7 @@ export default function App() {
     setBeat(b)
     setActiveIndex(b.section)
     audioRef.current?.setEnergy(Math.min(1, b.section / 17))
-    const line = sections[b.section]?.lines?.[b.line]
-    if (line) {
-      const key = `s${String(b.section).padStart(2, '0')}-l${b.line}`
-      voiceRef.current?.speak(line, key)
-    }
+    // narration is one continuous flow (full-story.mp3) — scrolling never restarts it
     if (b.section !== 16) {
       setDetailId(null)
       sceneRef.current?.setActiveHotspot(null)
@@ -126,10 +122,7 @@ export default function App() {
     narrator.enabled = !narrator.enabled
     setVoiceOn(narrator.enabled)
     if (narrator.enabled) {
-      const { section, line } = beatRef.current
-      const text = sections[section]?.lines?.[line] || sections[0].lines[0]
-      const key = `s${String(section).padStart(2, '0')}-l${line}`
-      narrator.speak(text, key)
+      narrator.startFull()
     } else {
       narrator.stop()
     }
@@ -145,16 +138,13 @@ export default function App() {
       setSoundOn(on)
       audioRef.current.setEnergy(Math.min(1, stateRef.current.timeline / 17))
     }
-    // hosted narration on, starting with the current line
+    // hosted narration on — the full story in one continuous flow
     if (!voiceRef.current) voiceRef.current = new VoiceNarrator()
     const narrator = voiceRef.current
     if (narrator.supported && !narrator.enabled) {
       narrator.enabled = true
       setVoiceOn(true)
-      const { section, line } = beatRef.current
-      const text = sections[section]?.lines?.[line] || sections[0].lines[0]
-      const key = `s${String(section).padStart(2, '0')}-l${line}`
-      narrator.speak(text, key)
+      narrator.startFull()
     }
     // guided tour: advance one narration beat at a time
     if (!reducedMotion) setTourOn(true)
@@ -174,14 +164,19 @@ export default function App() {
     window.addEventListener('keydown', onUserInput)
 
     const id = window.setInterval(() => {
-      const t = stateRef.current.timeline
-      const next = Math.floor(t) + 1
+      // advance to the NEXT narration line (not just the next section),
+      // so the guided scroll keeps pace with the host's voice
+      const { section, line } = beatRef.current
+      const linesInSection = sections[section]?.lines?.length || 1
+      let next
+      if (line + 1 < linesInSection) next = section + (line + 1) / linesInSection
+      else next = section + 1
       if (next >= 17.85) {
         stop()
         return
       }
       window.scrollTo({ top: scrollYForTimeline(next), behavior: 'smooth' })
-    }, 3400)
+    }, 2200)
 
     return () => {
       window.clearInterval(id)

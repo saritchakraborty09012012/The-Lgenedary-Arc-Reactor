@@ -32,16 +32,14 @@ A dark, cinematic scrollytelling site that takes a fusion reactor apart piece by
 
 ### Voice narration
 
-Every caption line (54 lines) is narrated by a deep, documentary-style neural voice (Microsoft Edge neural TTS, `en-US-GuyNeural`, slightly slowed and pitched down for a cinematic host feel). The clips are pre-generated MP3s in `public/voice/` (`s{section}-l{line}.mp3`), so playback is instant and identical on every device.
+The whole story is narrated by a deep, documentary-style neural voice (Microsoft Edge neural TTS, `en-US-GuyNeural`, slightly slowed and pitched down for a cinematic host feel) as **one continuous recording** — `public/voice/full-story.mp3` (~104 seconds). It opens with *"Welcome to the story of the arc reactor… Please scroll to know more"* and then tells the entire story in a single unbroken flow, exactly like a YouTube voiceover:
 
-Narration uses a **strict FIFO queue**:
+- no per-line stops, no stuttering, no gaps — just one natural performance from start to finish;
+- it plays regardless of where you are scrolled (the voice is the host; the visuals follow the scroll);
+- the guided tour advances one narration line at a time (~2.2s), keeping the scroll roughly in pace with the voice — and any manual scroll instantly takes control back;
+- stopping is only possible via the VOICE toggle.
 
-- every line you pass is queued and read in story order — nothing is skipped, even on a fast swipe;
-- the line currently playing is never cut off mid-sentence, so the voice never fumbles;
-- the next clip is preloaded while the current one plays, so there are no gaps;
-- duplicates are de-duped; stopping is only possible via the VOICE toggle.
-
-If a clip is missing it falls back to the best available browser voice.
+Per-line clips (`public/voice/s{section}-l{line}.mp3`) are kept as a fallback set, and if the main file is missing the player falls back to the best available browser voice.
 
 ### Sound design
 

@@ -1,18 +1,14 @@
 /**
  * Hosting-style storytelling narration.
  *
- * Each caption line has a pre-generated neural-voice MP3 in /voice
- * (deep documentary narrator voice). Playback is a strict FIFO queue:
+ * The whole story is ONE continuous neural-voice recording
+ * (/voice/full-story.mp3, ~104s) — a single unbroken flow,
+ * exactly like a YouTube voiceover: no per-line stops, no
+ * stuttering, no gaps. It plays start-to-finish regardless of
+ * where you are scrolled, like a host telling you the story
+ * while the reactor unfolds on screen.
  *
- *   - every line the user scrolls through is ENQUEUED, never dropped
- *   - lines play one after another in story order, like a host
- *     telling the story — even if you scrolled past them quickly
- *   - the current line is NEVER cancelled mid-sentence, so the
- *     narration never fumbles or stutters
- *   - the next clip is preloaded while the current one plays,
- *     so there is no gap between lines
- *
- * The only way to stop it is the VOICE toggle (or tour stop).
+ * The only way to stop it is the VOICE toggle.
  */
 export class VoiceNarrator {
   constructor() {
@@ -134,6 +130,27 @@ export class VoiceNarrator {
     if (!this.enabled) return
     const next = this.queue.shift()
     if (next) this.play(next)
+  }
+
+  /**
+   * Play the complete story in one continuous flow.
+   * Scrolling never interrupts it — that is the point.
+   */
+  startFull() {
+    if (!this.enabled) return
+    const el = this.getAudio('full-story')
+    this.audio = el
+    this.currentKey = 'full-story'
+    el.currentTime = 0
+    const result = el.play()
+    if (result && result.catch) {
+      result.catch(() => {
+        this.currentKey = null
+        this.speakFallback(
+          'Welcome to the story of the arc reactor. At its core, it is basically a miniature fusion reactor. Please scroll to know more.'
+        )
+      })
+    }
   }
 
   /**
